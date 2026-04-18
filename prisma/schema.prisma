@@ -1,0 +1,168 @@
+// Prisma schema — Kira Bot
+// Banco: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELED
+  PENDING
+}
+
+enum BotStatus {
+  CONNECTED
+  DISCONNECTED
+  QR
+  LOADING
+}
+
+enum PaymentStatus {
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PENDING
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  role         Role     @default(USER)
+  banned       Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  subscription   Subscription?
+  botInstances   BotInstance[]
+  payments       Payment[]
+  tickets        Ticket[]
+  passwordResets PasswordReset[]
+  auditLogs      AuditLog[]
+
+  @@index([email])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique
+  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan                 String // "starter" | "pro" | "business"
+  status               SubscriptionStatus @default(PENDING)
+  stripeCustomerId     String?
+  stripeSubscriptionId String?            @unique
+  currentPeriodEnd     DateTime?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+}
+
+model BotInstance {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String    @default("Bot")
+  status      BotStatus @default(DISCONNECTED)
+  phoneNumber String?
+  // Configurações
+  prefix         String   @default("!")
+  groupsOnly     Boolean  @default(false)
+  antilink       Boolean  @default(true)
+  welcomeEnabled Boolean  @default(true)
+  welcomeMessage String   @default("Olá @user, seja bem-vindo!")
+  blockedWords   String[] @default([])
+  webhookUrl     String?
+  lastSeen       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  commands  CustomCommand[]
+  messages  MessageLog[]
+}
+
+model CustomCommand {
+  id           String      @id @default(cuid())
+  botId        String
+  bot          BotInstance @relation(fields: [botId], references: [id], onDelete: Cascade)
+  trigger      String
+  response     String
+  uses         Int         @default(0)
+  createdAt    DateTime    @default(now())
+
+  @@unique([botId, trigger])
+}
+
+model MessageLog {
+  id        String      @id @default(cuid())
+  botId     String
+  bot       BotInstance @relation(fields: [botId], references: [id], onDelete: Cascade)
+  direction String // "in" | "out"
+  chatId    String
+  body      String
+  createdAt DateTime    @default(now())
+
+  @@index([botId, createdAt])
+}
+
+model Payment {
+  id                    String        @id @default(cuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripePaymentIntentId String?       @unique
+  amount                Int // em centavos
+  currency              String        @default("brl")
+  status                PaymentStatus
+  plan                  String?
+  createdAt             DateTime      @default(now())
+
+  @@index([userId])
+}
+
+model Ticket {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  subject   String
+  message   String
+  status    String   @default("open") // open | resolved | closed
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  level     String   @default("info") // info | warn | error
+  details   String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
