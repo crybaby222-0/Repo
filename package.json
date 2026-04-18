@@ -8,12 +8,13 @@
     "dev": "tsx watch src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
+    "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:deploy": "prisma migrate deploy",
     "seed": "tsx prisma/seed.ts"
   },
-  "dependencies": {
+   "dependencies": {
     "@prisma/client": "^5.22.0",
     "@whiskeysockets/baileys": "^6.7.0",
     "argon2": "^0.41.1",
